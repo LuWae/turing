@@ -1,3 +1,4 @@
+/*
 mod tape;
 use crate::tape::Tape;
 mod concrete;
@@ -31,8 +32,46 @@ impl<'a> Execution<'a> {
         }
     }
 }
+*/
+
+use pest::Parser;
+use pest_derive::Parser;
+
+mod concrete;
+use concrete::{Primitive, RawBranch, RawMachine, RawState};
+
+#[derive(Parser)]
+#[grammar = "grammar.pest"]
+struct TuringParser;
 
 fn main() {
+    let input = "main { [def] < ='0' main } add { ['x00'] < }";
+    let mut m = RawMachine { states: Vec::new() };
+    let result = TuringParser::parse(Rule::file, input)
+        .unwrap()
+        .next()
+        .unwrap();
+    for i in result.into_inner() {
+        if let Rule::statedesc = i.as_rule() {
+            let mut inner_rules = i.into_inner();
+            let state = RawState {
+                name: inner_rules.next().unwrap().as_str(),
+                branches: inner_rules
+                    .map(|pair| {
+                        println!("{:?}", pair);
+                        RawBranch {
+                            syms: Vec::new(),
+                            primitives: Vec::new(),
+                            call: None,
+                        }
+                    })
+                    .collect(),
+            };
+            m.states.push(state);
+        }
+    }
+    println!("{:?}", m);
+    /*
     let m = TuringMachine { states: vec![
         State {
             name: "main".to_string(),
@@ -75,4 +114,5 @@ fn main() {
     loop {
         exec.step();
     }
+    */
 }

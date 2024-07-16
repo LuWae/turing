@@ -23,18 +23,10 @@ impl Tape {
     pub fn get(&self, idx: i32) -> u8 {
         if idx >= 0 {
             let idx = idx as usize;
-            if idx < self.right.len() {
-                self.right[idx]
-            } else {
-                0
-            }
+            self.right.get(idx).copied().unwrap_or(0)
         } else {
             let idx = (!idx) as usize;
-            if idx < self.left.len() {
-                self.left[idx]
-            } else {
-                0
-            }
+            self.left.get(idx).copied().unwrap_or(0)
         }
     }
 
@@ -66,7 +58,7 @@ impl Tape {
             if idx >= self.left.len() {
                 self.left.resize(idx + 1, 0);
             }
-            self.left[idx]= val;
+            self.left[idx] = val;
         }
     }
 }

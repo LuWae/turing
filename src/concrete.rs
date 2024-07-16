@@ -1,42 +1,24 @@
+#[derive(Debug)]
 pub enum Primitive {
     Movel,
     Mover,
     Print(u8),
 }
 
-pub enum Call {
-    StateIdx(usize),
-    Accept,
-    Reject,
-}
-
-pub enum Selector {
-    Single(u8),
-    RangeInclusive(u8, u8),
-    All,
-}
-
-impl Selector {
-    pub fn matches(&self, sym: u8) -> bool {
-        match self {
-            Selector::Single(sel_sym) => sym == *sel_sym,
-            Selector::RangeInclusive(sel_start, sel_end) => sym >= *sel_start && sym <= *sel_end,
-            Selector::All => true,
-        }
-    }
-}
-
-pub struct Branch {
-    pub syms: Vec<Selector>,
+#[derive(Debug)]
+pub struct RawBranch<'a> {
+    pub syms: Vec<u8>,
     pub primitives: Vec<Primitive>,
-    pub call: Call,
+    pub call: Option<&'a str>,
 }
 
-pub struct State {
-    pub name: String,
-    pub branches: Vec<Branch>,
+#[derive(Debug)]
+pub struct RawState<'a> {
+    pub name: &'a str,
+    pub branches: Vec<RawBranch<'a>>,
 }
 
-pub struct TuringMachine {
-    pub states: Vec<State>,
+#[derive(Debug)]
+pub struct RawMachine<'a> {
+    pub states: Vec<RawState<'a>>,
 }

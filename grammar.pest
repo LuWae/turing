@@ -1,0 +1,15 @@
+id_start = { 'a'..'z' | 'A'..'Z' | "_" }
+id_continue = { id_start | '0'..'9' }
+id = @{ id_start ~ (id_continue)* }
+
+statedesc = { id ~ "{" ~ branch* ~ "}" }
+branch = { selector ~ action* ~ id? }
+selector = { "[" ~ char ~ ("," ~ char)* ~ "]" | "[def]" }
+char = @{ "'" ~ char_inner ~ "'" }
+char_inner = @{ "x" ~ hexdigit ~ hexdigit | "0" | "1" | "_" }
+hexdigit = { '0'..'9' | 'a'..'f' }
+action = { "<" | ">" | "=" ~ char }
+
+file = { SOI ~ statedesc* ~ EOI }
+
+WHITESPACE = _{ " " | "\t" | "\r" | "\n" }
