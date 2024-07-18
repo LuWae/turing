@@ -132,29 +132,32 @@ fn main() {
 
     let state_map: HashMap<&str, usize> =
         HashMap::from_iter(m.states.iter().enumerate().map(|(i, s)| (s.name, i)));
-    let mut mm = Machine { states: Vec::new() };
-    for (state_idx, raw_state) in m.states.iter_mut().enumerate() {
-        let mut state = State {
-            branches: Vec::new(),
-        };
-        for raw_branch in &mut raw_state.branches {
-            let call = match raw_branch.call {
-                Some("accept") => Call::Accept,
-                Some("reject") => Call::Reject,
-                Some(name) => match state_map.get(name) {
-                    Some(idx) => Call::State(*idx),
-                    None => panic!("state not found: {}", name),
-                },
-                None => Call::State(state_idx),
-            };
-            state.branches.push(Branch {
-                sel: std::mem::take(&mut raw_branch.sel),
-                primitives: std::mem::take(&mut raw_branch.primitives),
-                call,
-            });
-        }
-        mm.states.push(state);
-    }
+    let mm = Machine {
+        states: m
+            .states
+            .into_iter()
+            .enumerate()
+            .map(|(state_idx, raw_state)| State {
+                branches: raw_state
+                    .branches
+                    .into_iter()
+                    .map(|raw_branch| Branch {
+                        sel: raw_branch.sel,
+                        primitives: raw_branch.primitives,
+                        call: match raw_branch.call {
+                            Some("accept") => Call::Accept,
+                            Some("reject") => Call::Reject,
+                            Some(name) => match state_map.get(name) {
+                                Some(idx) => Call::State(*idx),
+                                None => panic!("state not found: {}", name),
+                            },
+                            None => Call::State(state_idx),
+                        },
+                    })
+                    .collect(),
+            })
+            .collect(),
+    };
     println!("{:?}", mm);
     /*
     let m = TuringMachine { states: vec![
