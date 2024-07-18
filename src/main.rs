@@ -37,9 +37,12 @@ impl<'a> Execution<'a> {
 use pest::iterators::Pair;
 use pest::Parser;
 use pest_derive::Parser;
+use std::collections::HashMap;
 
 mod concrete;
-use concrete::{Primitive, RawBranch, RawMachine, RawState, Selector};
+use concrete::{
+    Branch, Call, Machine, Primitive, RawBranch, RawMachine, RawState, Selector, State,
+};
 
 #[derive(Parser)]
 #[grammar = "grammar.pest"]
@@ -112,7 +115,7 @@ fn main() {
             return;
         }
     };
-    let m = RawMachine {
+    let mut m = RawMachine {
         states: result
             .into_inner()
             .filter(|pair| pair.as_rule() == Rule::statedesc)
@@ -126,6 +129,33 @@ fn main() {
             .collect(),
     };
     println!("{:?}", m);
+
+    let state_map: HashMap<&str, usize> =
+        HashMap::from_iter(m.states.iter().enumerate().map(|(i, s)| (s.name, i)));
+    let mut mm = Machine { states: Vec::new() };
+    for (state_idx, raw_state) in m.states.iter_mut().enumerate() {
+        let mut state = State {
+            branches: Vec::new(),
+        };
+        for raw_branch in &mut raw_state.branches {
+            let call = match raw_branch.call {
+                Some("accept") => Call::Accept,
+                Some("reject") => Call::Reject,
+                Some(name) => match state_map.get(name) {
+                    Some(idx) => Call::State(*idx),
+                    None => panic!("state not found: {}", name),
+                },
+                None => Call::State(state_idx),
+            };
+            state.branches.push(Branch {
+                sel: std::mem::take(&mut raw_branch.sel),
+                primitives: std::mem::take(&mut raw_branch.primitives),
+                call,
+            });
+        }
+        mm.states.push(state);
+    }
+    println!("{:?}", mm);
     /*
     let m = TuringMachine { states: vec![
         State {

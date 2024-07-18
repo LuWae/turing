@@ -4,4 +4,6 @@ main {
 }
 
 add {
+    ['x5f'] ='x00' <
+    [def] main
 }
