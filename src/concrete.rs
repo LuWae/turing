@@ -6,8 +6,14 @@ pub enum Primitive {
 }
 
 #[derive(Debug)]
+pub enum Selector {
+    All,
+    Chars(Vec<u8>),
+}
+
+#[derive(Debug)]
 pub struct RawBranch<'a> {
-    pub syms: Vec<u8>,
+    pub sel: Selector,
     pub primitives: Vec<Primitive>,
     pub call: Option<&'a str>,
 }
