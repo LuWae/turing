@@ -3,6 +3,7 @@ use pest::iterators::Pair;
 use pest::Parser;
 use pest_derive::Parser;
 use std::collections::HashMap;
+use thiserror::Error;
 
 #[derive(Debug)]
 struct RawBranch<'a> {
@@ -84,13 +85,16 @@ fn parse_branch(pair: Pair<'_, Rule>) -> RawBranch<'_> {
     }
 }
 
-pub fn parse_machine(input: &str) -> Machine {
-    let result = match TuringParser::parse(Rule::file, input) {
-        Ok(mut pairs) => pairs.next().unwrap(),
-        Err(e) => {
-            panic!("{}", e);
-        }
-    };
+#[derive(Error, Debug)]
+pub enum ParseError<'a> {
+    #[error(transparent)]
+    LowerParse(#[from] pest::error::Error<Rule>),
+    #[error("unknown state name: {0}")]
+    NameNotFound(&'a str),
+}
+
+pub fn parse_machine(input: &str) -> Result<Machine, ParseError<'_>> {
+    let result = TuringParser::parse(Rule::file, input)?.next().unwrap();
     let m = RawMachine {
         states: result
             .into_inner()
@@ -108,30 +112,35 @@ pub fn parse_machine(input: &str) -> Machine {
     let state_map: HashMap<&str, usize> =
         HashMap::from_iter(m.states.iter().enumerate().map(|(i, s)| (s.name, i)));
 
-    Machine {
+    // TODO I'm thinking this is one of the situations where for loops would be better
+    Ok(Machine {
         states: m
             .states
             .into_iter()
             .enumerate()
-            .map(|(state_idx, raw_state)| State {
-                branches: raw_state
-                    .branches
-                    .into_iter()
-                    .map(|raw_branch| Branch {
-                        sel: raw_branch.sel,
-                        primitives: raw_branch.primitives,
-                        call: match raw_branch.call {
-                            Some("accept") => Call::Accept,
-                            Some("reject") => Call::Reject,
-                            Some(name) => match state_map.get(name) {
-                                Some(idx) => Call::State(*idx),
-                                None => panic!("state not found: {}", name),
-                            },
-                            None => Call::State(state_idx),
-                        },
-                    })
-                    .collect(),
+            .map(|(state_idx, raw_state)| {
+                Ok(State {
+                    branches: raw_state
+                        .branches
+                        .into_iter()
+                        .map(|raw_branch| {
+                            Ok(Branch {
+                                sel: raw_branch.sel,
+                                primitives: raw_branch.primitives,
+                                call: match raw_branch.call {
+                                    Some("accept") => Ok(Call::Accept),
+                                    Some("reject") => Ok(Call::Reject),
+                                    Some(name) => state_map
+                                        .get(name)
+                                        .map(|idx| Call::State(*idx))
+                                        .ok_or(ParseError::NameNotFound(name)),
+                                    None => Ok(Call::State(state_idx)),
+                                }?,
+                            })
+                        })
+                        .collect::<Result<Vec<Branch>, ParseError<'_>>>()?,
+                })
             })
-            .collect(),
-    }
+            .collect::<Result<Vec<State>, ParseError<'_>>>()?,
+    })
 }

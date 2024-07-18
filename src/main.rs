@@ -40,8 +40,10 @@ use parse::parse_machine;
 
 fn main() {
     let input = std::fs::read_to_string("test_machine.tm").unwrap();
-    let machine = parse_machine(&input);
-    println!("{:?}", machine);
+    match parse_machine(&input) {
+        Ok(machine) => println!("{:?}", machine),
+        Err(e) => println!("{}", e),
+    }
     /*
     let m = TuringMachine { states: vec![
         State {
