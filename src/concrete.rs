@@ -11,30 +11,6 @@ pub enum Selector {
     Chars(Vec<u8>),
 }
 
-impl std::default::Default for Selector {
-    fn default() -> Self {
-        Selector::Chars(Vec::new())
-    }
-}
-
-#[derive(Debug)]
-pub struct RawBranch<'a> {
-    pub sel: Selector,
-    pub primitives: Vec<Primitive>,
-    pub call: Option<&'a str>,
-}
-
-#[derive(Debug)]
-pub struct RawState<'a> {
-    pub name: &'a str,
-    pub branches: Vec<RawBranch<'a>>,
-}
-
-#[derive(Debug)]
-pub struct RawMachine<'a> {
-    pub states: Vec<RawState<'a>>,
-}
-
 #[derive(Debug)]
 pub enum Call {
     Accept,
