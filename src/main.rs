@@ -105,10 +105,13 @@ fn parse_branch(pair: Pair<'_, Rule>) -> RawBranch<'_> {
 
 fn main() {
     let input = std::fs::read_to_string("test_machine.tm").unwrap();
-    let result = TuringParser::parse(Rule::file, &input)
-        .unwrap()
-        .next()
-        .unwrap();
+    let result = match TuringParser::parse(Rule::file, &input) {
+        Ok(mut pairs) => pairs.next().unwrap(),
+        Err(e) => {
+            println!("{}", e);
+            return;
+        }
+    };
     let m = RawMachine {
         states: result
             .into_inner()
