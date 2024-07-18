@@ -105,21 +105,23 @@ fn parse_branch(pair: Pair<'_, Rule>) -> RawBranch<'_> {
 
 fn main() {
     let input = std::fs::read_to_string("test_machine.tm").unwrap();
-    let mut m = RawMachine { states: Vec::new() };
     let result = TuringParser::parse(Rule::file, &input)
         .unwrap()
         .next()
         .unwrap();
-    for i in result.into_inner() {
-        if let Rule::statedesc = i.as_rule() {
-            let mut inner_rules = i.into_inner();
-            let state = RawState {
-                name: inner_rules.next().unwrap().as_str(),
-                branches: inner_rules.map(parse_branch).collect(),
-            };
-            m.states.push(state);
-        }
-    }
+    let m = RawMachine {
+        states: result
+            .into_inner()
+            .filter(|pair| pair.as_rule() == Rule::statedesc)
+            .map(|pair| {
+                let mut inner_rules = pair.into_inner();
+                RawState {
+                    name: inner_rules.next().unwrap().as_str(),
+                    branches: inner_rules.map(parse_branch).collect(),
+                }
+            })
+            .collect(),
+    };
     println!("{:?}", m);
     /*
     let m = TuringMachine { states: vec![
