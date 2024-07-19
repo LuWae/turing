@@ -1,0 +1,40 @@
+id_start = { 'a'..'z' | 'A'..'Z' | "_" }
+id_continue = { id_start | '0'..'9' }
+id = @{ !(keyword_let ~ !id_continue) ~ 
+        !(keyword_accept ~ !id_continue) ~
+        !(keyword_reject ~ !id_continue) ~
+        !(keyword_return ~ !id_continue) ~
+        !(keyword_def ~ !id_continue) ~
+        id_start ~ (id_continue)* }
+
+keyword_let = { "let" }
+keyword_accept = { "accept" }
+keyword_reject = { "reject" }
+keyword_return = { "return" }
+keyword_def = { "def" }
+
+statedesc = { id ~ ("(" ~ statearg ~ ("," ~ statearg)* ~ ")")? ~ "{" ~ branch* ~ "}" }
+statearg = { "$" ~ 'a'..'z' | 'A'..'Z' }
+branch = { selector ~ action* ~ call? }
+call = { id ~ ("(" ~ param ~ ("," ~ param)* ~ ")")? }
+param = { char | call }
+selector = { "[" ~ char ~ ("|" ~ char)* ~ "]" | "[def]" }
+char = @{ "'" ~ char_inner ~ "'" }
+char_inner = @{ "x" ~ hexdigit ~ hexdigit | ascii_printable }
+hexdigit = { '0'..'9' | 'a'..'f' }
+action = { "<" | ">" | "#" ~ char }
+
+let = { keyword_let ~ id ~ "=" ~ (expr | x_statedesc | x_func) }
+expr = { char | x_selector | actlist } // problem: what is id?
+x_statedesc = { "{" ~ x_branch* ~ "}" }
+x_branch = { x_selector ~ actlist }
+x_selector = { "[" ~ keyword_def ~ "]" |
+             "[" ~ (char | id) ~ ("|" ~ (char | id))* ~ "]" }
+actlist = { keyword_return | actlist_elem+ ~ keyword_return?}
+actlist_elem = { (action | id ~ ("(" ~ expr ~ ("," ~ expr)* ~ ")")?) }
+x_func = { "|" ~ id ~ ("," ~ id)* ~ "|" ~ (expr | x_statedesc) }
+
+file = { SOI ~ statedesc* ~ EOI }
+
+ascii_printable = { '\u{20}'..'\u{7e}' }
+WHITESPACE = _{ " " | "\t" | "\r" | "\n" }

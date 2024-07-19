@@ -1,0 +1,81 @@
+# Datatypes
+- Sym: `'a'`, `'x00'` (unsigned byte)
+  - special character: `$` is the character currently under the tape
+- Selector: we use bracket syntax to distinguish single-sym selector from sym
+  - no, we don't use bracket syntax! We want to be forced to place selectors explicitly in brackets, especially if they are arguments
+  - `['a']`, `['a'|'b']`
+    - may need to rethink using '|' here, as it's already used in functions! Comma for now.
+    - commas are also difficult: consider f('a','b','c'): could be three arguments, or 2 with a selector!
+    - keyword 'or' for now.
+  - `['a'|['b']]` also works (this appears e.g. when we pass a selector as argument)
+  - eventually we may want NOT, OR, AND, RANGE for selectors. but that can wait.
+- Action: `<`, `>`, `# Sym`, `fr('a')`
+  - we use `'#'` for printing because equals sign is used for assignments.
+- ActionChain: sequence of Action
+  - these are implicitly greedily gathered, e.g. we collect actions until we hit a let statement, another branch, or the end of the current block
+  - think about having a better way to separate this, e.g. using a semicolon at the end!
+- there is no 'State' datatype. A state is simply a match on the current tape character, which returns an action chain.
+  - TODO think about if this results in any ambiguities with self and return; do we need a self::super?
+
+- actlist cannot include return; we can't do find('a', >> return). parse returns outside.
+  accepts, rejects must be inside through!
+  - does return even make sense when we don't have "classical" states?
+  - I guess return doesn't make sense, but self does. this conflicts with the concrete grammar though
+  - maybe return does make sense. It just ends the current action chain.
+  - would be unintuitive then why the > in fr('a', >) is not an infinite loop
+  - should we parametrize action chains somehow based on return/self? make it different types?
+  - let s = match $ {}
+# Language constructs
+
+## Functions/Macros
+```
+let fr = |sel| {
+  [sel] return
+  [def] > self
+}
+let fr_a = fr('a')
+```
+### Nested
+this, or calling functions that return functions, may be an ambiguity in the parser.
+I have to take a closer look at it.
+```
+let fr = |x| |y| match x {
+  [y] '1'
+  [def] '0'
+}
+let a_equals_b = fr('a')('b')
+```
+
+
+## Match
+```
+let subst = |c| match c {
+  ['0'] 'a'
+  ['1'] 'b'
+}
+let string = |i| match i {
+  ['x00'] 'h'
+  ['x01'] 'i'
+  ['x00'] '!'
+}
+```
+
+
+
+# Simplifications
+
+## Implicit match $
+```
+let s = {
+  ['a'] #'b' accept
+  ['b'] #'a' accept
+}
+```
+is shorthand for 
+```
+let s = match $ {
+  ['a'] #'b' accept
+  ['b'] #'a' accept
+}
+```
+because this is the most common case.

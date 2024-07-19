@@ -1,0 +1,54 @@
+let main = >>
+  #'A' <
+  #'1' <
+  #'$' <
+  #'n' <
+  #'$' <
+  #' ' <
+  #'#' <
+  #'1' <
+  #'1' <
+  #'0' <
+  #'#' <
+  #'1' <
+  #'0' <
+  #'0' <
+  #'#' <
+  #'%'
+  > singleterm accept
+
+let find = |sel, mov| {
+	[sel] return
+	[def] mov self
+}
+let fl = |sel| find(sel, <)
+let fr = |sel| find(sel, >)
+
+let subst = {
+	['0'] #'a' return
+	['1'] #'b' return
+}
+
+let substbig = {
+	['0'] #'A' return
+	['1'] #'B' return
+}
+
+# maybe let return be the default mode and introduce self keyword to stay in state?
+# isn't this infinite unrolling?
+let resubst = {
+	['a'|'A'] #'0' return
+	['b'|'B'] #'1' return
+}
+
+let singleterm = {
+	['%'] #' ' fl('_') newterm
+}
+
+let newterm = #'#' >> fr(' ') << newterm_rec return
+
+let newterm_rec = {
+	['0'] #'a' fl('_') #'0' fr('a'|'b') resubst < self
+	['1'] #'b' fl('_') #'1' fr('a'|'b') resubst < self
+	[def] fl('_') #'0' < #'#' > fr('#') << add_bit fl('#') >> newterm_prune return
+}
