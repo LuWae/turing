@@ -93,7 +93,12 @@ pub enum ParseError<'a> {
     NameNotFound(&'a str),
 }
 
-pub fn parse_machine(input: &str) -> Result<Machine, ParseError<'_>> {
+pub struct ParseData<'a> {
+    pub machine: Machine,
+    pub state_names: Vec<&'a str>,
+}
+
+pub fn parse_machine(input: &str) -> Result<ParseData, ParseError<'_>> {
     let result = TuringParser::parse(Rule::file, input)?.next().unwrap();
     let m = RawMachine {
         states: result
@@ -112,8 +117,8 @@ pub fn parse_machine(input: &str) -> Result<Machine, ParseError<'_>> {
     let state_map: HashMap<&str, usize> =
         HashMap::from_iter(m.states.iter().enumerate().map(|(i, s)| (s.name, i)));
 
-    // TODO I'm thinking this is one of the situations where for loops would be better
-    let mut mm = Machine { states: Vec::new() };
+    let mut state_names = Vec::new();
+    let mut machine = Machine { states: Vec::new() };
     for (state_idx, raw_state) in m.states.into_iter().enumerate() {
         let mut state = State {
             branches: Vec::new(),
@@ -133,7 +138,11 @@ pub fn parse_machine(input: &str) -> Result<Machine, ParseError<'_>> {
                 },
             });
         }
-        mm.states.push(state);
+        machine.states.push(state);
+        state_names.push(raw_state.name);
     }
-    Ok(mm)
+    Ok(ParseData {
+        machine,
+        state_names,
+    })
 }

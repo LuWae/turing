@@ -36,12 +36,15 @@ impl<'a> Execution<'a> {
 
 mod concrete;
 mod parse;
-use parse::parse_machine;
+use parse::{parse_machine, ParseData};
 
 fn main() {
     let input = std::fs::read_to_string("test_machine.tm").unwrap();
     match parse_machine(&input) {
-        Ok(machine) => println!("{:?}", machine),
+        Ok(ParseData {
+            machine,
+            state_names: _,
+        }) => println!("{:?}", machine),
         Err(e) => println!("{}", e),
     }
     /*
