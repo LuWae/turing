@@ -113,34 +113,27 @@ pub fn parse_machine(input: &str) -> Result<Machine, ParseError<'_>> {
         HashMap::from_iter(m.states.iter().enumerate().map(|(i, s)| (s.name, i)));
 
     // TODO I'm thinking this is one of the situations where for loops would be better
-    Ok(Machine {
-        states: m
-            .states
-            .into_iter()
-            .enumerate()
-            .map(|(state_idx, raw_state)| {
-                Ok(State {
-                    branches: raw_state
-                        .branches
-                        .into_iter()
-                        .map(|raw_branch| {
-                            Ok(Branch {
-                                sel: raw_branch.sel,
-                                primitives: raw_branch.primitives,
-                                call: match raw_branch.call {
-                                    Some("accept") => Ok(Call::Accept),
-                                    Some("reject") => Ok(Call::Reject),
-                                    Some(name) => state_map
-                                        .get(name)
-                                        .map(|idx| Call::State(*idx))
-                                        .ok_or(ParseError::NameNotFound(name)),
-                                    None => Ok(Call::State(state_idx)),
-                                }?,
-                            })
-                        })
-                        .collect::<Result<Vec<Branch>, ParseError<'_>>>()?,
-                })
-            })
-            .collect::<Result<Vec<State>, ParseError<'_>>>()?,
-    })
+    let mut mm = Machine { states: Vec::new() };
+    for (state_idx, raw_state) in m.states.into_iter().enumerate() {
+        let mut state = State {
+            branches: Vec::new(),
+        };
+        for raw_branch in raw_state.branches {
+            state.branches.push(Branch {
+                sel: raw_branch.sel,
+                primitives: raw_branch.primitives,
+                call: match raw_branch.call {
+                    Some("accept") => Call::Accept,
+                    Some("reject") => Call::Reject,
+                    Some(name) => state_map
+                        .get(name)
+                        .map(|idx| Call::State(*idx))
+                        .ok_or(ParseError::NameNotFound(name))?,
+                    None => Call::State(state_idx),
+                },
+            });
+        }
+        mm.states.push(state);
+    }
+    Ok(mm)
 }
