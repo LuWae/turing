@@ -11,6 +11,15 @@ pub enum Selector {
     Chars(Vec<u8>),
 }
 
+impl Selector {
+    pub fn matches(&self, c: u8) -> bool {
+        match self {
+            Selector::All => true,
+            Selector::Chars(v) => v.contains(&c),
+        }
+    }
+}
+
 #[derive(Debug)]
 pub enum Call {
     Accept,

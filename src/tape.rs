@@ -1,3 +1,4 @@
+#[derive(Debug)]
 pub struct Tape {
     left: Vec<u8>,
     right: Vec<u8>,
