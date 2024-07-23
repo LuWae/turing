@@ -1,0 +1,59 @@
+// more flexible selectors with |, &, !.
+// removed default keyword; replace with `!`.
+// if this is too awkward we can just use `def` or `all` keyword, but treat it as proper selector this time.
+
+// made it easier to form "pass-through" states, by not having to put [!] when no other branch is present.
+
+// one perhaps intuitive thing is that parens are only allowed in selectors;
+// as an edge case, ('a') is a selector and not a char.
+// this makes the grammar easier in general because we know where parens belong to
+// consider ambiguity in call chain: y (y) could be state y with args y, or a chain y y.
+// if this is too ugly we can replace parens with brackets.
+
+// fixed issue where call_chain could be empty.
+
+id_start = { 'a'..'z' | 'A'..'Z' | "_" }
+id_continue = { id_start | '0'..'9' }
+id = @{ !(keyword_accept ~ !id_continue) ~
+        !(keyword_reject ~ !id_continue) ~
+        id_start ~ (id_continue)* }
+
+keyword_accept = { "accept" }
+keyword_reject = { "reject" }
+
+char = @{ "'" ~ char_inner ~ "'" }
+char_inner = @{ "x" ~ hexdigit ~ hexdigit | ascii_printable }
+hexdigit = { '0'..'9' | 'a'..'f' }
+
+
+statedef = { id ~ params? ~ "{" ~ (call_chain | branch+) ~ "}" }
+params = { "(" ~ id ~ ("," ~ id)* ~ ")" }
+branch = { "[" ~ sel ~ "]" ~ call_chain }
+call_chain = { (keyword_accept | keyword_reject)
+    | (primitive | call)+ ~ (keyword_accept | keyword_reject)? }
+call = { id ~ call_tail? }
+call_noid = { id ~ call_tail } 
+call_tail = { "(" ~ call_arg ~ ("," ~ call_arg)* ~ ")" }
+call_arg =  {
+      !((id | char) ~ ("," | ")")) ~ sel ~ &("," | ")")
+    | !(id ~ ("," | ")")) ~ call_chain ~ &("," | ")")
+    | char
+    | id
+}
+primitive = { ">" | "<" | "#" ~ (char | id) }
+
+// precedence: or < and < not < range (use standard programming precedences)
+sel = { sel_or | sel_p2 }
+sel_silent = _{ sel_or | sel_p2 }
+sel_or = { sel_p2 ~ ("|" ~ sel_p2)+ }
+sel_p2 = _{ sel_and | sel_p3 }
+sel_and = { sel_p3 ~ ("&" ~ sel_p3)+ }
+sel_p3 = _{ sel_not | sel_p4 }
+sel_not = { "!" ~ sel_p3? } // allow ! syntax as replacement for def keyword
+sel_p4 = _{ sel_range | (id | char) | "(" ~ sel_silent ~ ")" }
+sel_range = { (id | char) ~ (".." ~ (id | char)) }
+
+file = { SOI ~ statedef* ~ EOI }
+
+ascii_printable = { '\u{20}'..'\u{7e}' }
+WHITESPACE = _{ " " | "\t" | "\r" | "\n" }

@@ -4,6 +4,13 @@
 // chars are caught before selectors.
 // (at this stage) unidentifiable lone ids are caught also, see call_tail.
 
+// note that this grammar supports "callable state arguments", which I left out of the original abstract grammar.
+//   find(sel, move, E) {
+//     [sel] E
+//     [def] move E
+//   }
+// here, `move` must take a state parameter (signature `move(E)`). Otherwise we get an error with substitution.
+
 id_start = { 'a'..'z' | 'A'..'Z' | "_" }
 id_continue = { id_start | '0'..'9' }
 id = @{ !(keyword_accept ~ !id_continue) ~
