@@ -4,37 +4,46 @@ id = @{ !(keyword_let ~ !id_continue) ~
         !(keyword_accept ~ !id_continue) ~
         !(keyword_reject ~ !id_continue) ~
         !(keyword_return ~ !id_continue) ~
-        !(keyword_def ~ !id_continue) ~
+        !(keyword_stay ~ !id_continue) ~
+        !(keyword_fn ~ !id_continue) ~
+        !(keyword_match ~ !id_continue) ~
+        !(keyword_chain ~ !id_continue) ~
         id_start ~ (id_continue)* }
 
 keyword_let = { "let" }
 keyword_accept = { "accept" }
 keyword_reject = { "reject" }
 keyword_return = { "return" }
-keyword_def = { "def" }
+keyword_fn = { "fn" }
+keyword_match = { "match" }
+keyword_chain = { "chain" }
+keyword_stay = { "stay" }
 
-statedesc = { id ~ ("(" ~ statearg ~ ("," ~ statearg)* ~ ")")? ~ "{" ~ branch* ~ "}" }
-statearg = { "$" ~ 'a'..'z' | 'A'..'Z' }
-branch = { selector ~ action* ~ call? }
-call = { id ~ ("(" ~ param ~ ("," ~ param)* ~ ")")? }
-param = { char | call }
-selector = { "[" ~ char ~ ("|" ~ char)* ~ "]" | "[def]" }
-char = @{ "'" ~ char_inner ~ "'" }
+// keyword_def is not used for now.
+
+imm_char = @{ "'" ~ char_inner ~ "'" }
 char_inner = @{ "x" ~ hexdigit ~ hexdigit | ascii_printable }
 hexdigit = { '0'..'9' | 'a'..'f' }
-action = { "<" | ">" | "#" ~ char }
 
-let = { keyword_let ~ id ~ "=" ~ (expr | x_statedesc | x_func) }
-expr = { char | x_selector | actlist } // problem: what is id?
-x_statedesc = { "{" ~ x_branch* ~ "}" }
-x_branch = { x_selector ~ actlist }
-x_selector = { "[" ~ keyword_def ~ "]" |
-             "[" ~ (char | id) ~ ("|" ~ (char | id))* ~ "]" }
-actlist = { keyword_return | actlist_elem+ ~ keyword_return?}
-actlist_elem = { (action | id ~ ("(" ~ expr ~ ("," ~ expr)* ~ ")")?) }
-x_func = { "|" ~ id ~ ("," ~ id)* ~ "|" ~ (expr | x_statedesc) }
 
-file = { SOI ~ statedesc* ~ EOI }
+let = { keyword_let ~ id ~ "=" ~ expr }
+expr = {
+  imm_selector | // safe
+  imm_chain | // safe
+  imm_char | // safe
+  imm_primitive | // safe
+  imm_funcdef | // safe
+  imm_funccall | // safe
+  imm_match | // safe
+  id | "$" }
+imm_primitive = { "<" | ">" | "#" ~ expr }
+imm_selector = { "[" ~ expr ~ ("|" ~ expr)* ~ "]" }
+imm_chain = { keyword_chain ~ "{" ~ expr* ~ (keyword_accept | keyword_reject | keyword_stay | keyword_return) ~ "}" }
+imm_funcdef = { keyword_fn ~ "(" ~ id ~ ("," ~ id)* ~ ")" ~ expr }
+imm_funccall = { "@" ~ expr ~ "(" ~ expr ~ ("," ~ expr)* ~ ")" }
+imm_match = { keyword_match ~ expr ~ "{" ~ (expr ~ ":" ~ expr)+ ~ "}" }
+
+file = { SOI ~ let* ~ EOI }
 
 ascii_printable = { '\u{20}'..'\u{7e}' }
 WHITESPACE = _{ " " | "\t" | "\r" | "\n" }

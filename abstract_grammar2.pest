@@ -1,0 +1,35 @@
+// allow primitives inside call chains by transforming them into l(E), r(E), p(a, E).
+// putting them at the very end is an error, as they expect a chained state.
+// this is not caught by the grammar at the moment.
+
+id_start = { 'a'..'z' | 'A'..'Z' | "_" }
+id_continue = { id_start | '0'..'9' }
+id = @{ !(keyword_accept ~ !id_continue) ~
+        !(keyword_reject ~ !id_continue) ~
+        !(keyword_def ~ !id_continue) ~
+        id_start ~ (id_continue)* }
+
+keyword_accept = { "accept" }
+keyword_reject = { "reject" }
+keyword_def = { "def" }
+
+char = @{ "'" ~ char_inner ~ "'" }
+char_inner = @{ "x" ~ hexdigit ~ hexdigit | ascii_printable }
+hexdigit = { '0'..'9' | 'a'..'f' }
+
+
+statedef = { id ~ ("(" ~ id ~ ("," ~ id)* ~ ")")? ~ "{" ~ branch+ ~ "}" }
+// primitives and calls can now be intermixed (not accept or reject though).
+// we could also catch this later in the parse.
+// transform A(...) < B(...) #'x' C(...) to A(...) l B(...) p('x') C(...)
+branch = { selector ~ (primitive | call)* ~ (keyword_accept | keyword_reject)? }
+selector = { "[" ~ keyword_def ~ "]" | "[" ~ (char | id) ~ ("|" ~ (char | id))* ~ "]" }
+// removed accept and reject from call. a call is a "proper" call to another state now.
+call = { id ~ ("(" ~ (char | call) ~ ("," ~ (char | call))* ~ ")")? }
+primitive = { ">" | "<" | "#" ~ (char | id) }
+
+file = { SOI ~ statedef* ~ EOI }
+
+ascii_printable = { '\u{20}'..'\u{7e}' }
+WHITESPACE = _{ " " | "\t" | "\r" | "\n" }
+

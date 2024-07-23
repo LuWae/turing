@@ -1,0 +1,43 @@
+// remove excessive parentheses by allowing last state parameter to be used implicitly.
+// example:
+//   A(x, y, E) { [x|y] >> E }
+// can be used normally:
+//   main { [def] A('0', '1', r(r(accept))) }
+// but it can also be used with one less argument, implicitly using what comes after:
+//   main { [def] A('0', '1') r r accept
+// this makes the characteristic "call chains" more convenient to use.
+// it is not advisable to use this if there is more than one obvious 'slot' for chained states to fit into (call parameters)
+//   either(ZERO, ONE) { ['0'] ZERO ['1'] ONE }
+//   main { [def] either(p('1', accept), p('0', accept)) }
+// is more intuitive than
+//   main { [def] either(p('1', accept)) p('0', accept) }
+
+id_start = { 'a'..'z' | 'A'..'Z' | "_" }
+id_continue = { id_start | '0'..'9' }
+id = @{ !(keyword_accept ~ !id_continue) ~
+        !(keyword_reject ~ !id_continue) ~
+        !(keyword_def ~ !id_continue) ~
+        id_start ~ (id_continue)* }
+
+keyword_accept = { "accept" }
+keyword_reject = { "reject" }
+keyword_def = { "def" }
+
+char = @{ "'" ~ char_inner ~ "'" }
+char_inner = @{ "x" ~ hexdigit ~ hexdigit | ascii_printable }
+hexdigit = { '0'..'9' | 'a'..'f' }
+
+
+statedef = { id ~ ("(" ~ id ~ ("," ~ id)* ~ ")")? ~ "{" ~ branch+ ~ "}" }
+// there can be arbitrarily many calls at the end, but not intermixed with primitives.
+// transform A(...) B(...) C(...) to A(..., B(..., C(...))
+// whatever comes after is transformed to be the last argument
+branch = { selector ~ primitive* ~ call* }
+selector = { "[" ~ keyword_def ~ "]" | "[" ~ (char | id) ~ ("|" ~ (char | id))* ~ "]" }
+call = { keyword_accept | keyword_reject | id ~ ("(" ~ (char | call) ~ ("," ~ (char | call))* ~ ")")? }
+primitive = { ">" | "<" | "#" ~ (char | id) }
+
+file = { SOI ~ statedef* ~ EOI }
+
+ascii_printable = { '\u{20}'..'\u{7e}' }
+WHITESPACE = _{ " " | "\t" | "\r" | "\n" }

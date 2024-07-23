@@ -1,0 +1,34 @@
+// base form.
+// changes to old version:
+// - do not syntactically distinguish between char arguments/parameters and call arguments/parameters.
+// - use `#` as printing symbol, not `=`
+// - disallow comments (can be added later, but they interfered with the printing)
+
+id_start = { 'a'..'z' | 'A'..'Z' | "_" }
+id_continue = { id_start | '0'..'9' }
+id = @{ !(keyword_accept ~ !id_continue) ~
+        !(keyword_reject ~ !id_continue) ~
+        !(keyword_def ~ !id_continue) ~
+        id_start ~ (id_continue)* }
+
+keyword_accept = { "accept" }
+keyword_reject = { "reject" }
+keyword_def = { "def" }
+
+char = @{ "'" ~ char_inner ~ "'" }
+char_inner = @{ "x" ~ hexdigit ~ hexdigit | ascii_printable }
+hexdigit = { '0'..'9' | 'a'..'f' }
+
+
+statedef = { id ~ ("(" ~ id ~ ("," ~ id)* ~ ")")? ~ "{" ~ branch+ ~ "}" }
+// every branch has at most one call.
+branch = { selector ~ primitive* ~ call? }
+selector = { "[" ~ keyword_def ~ "]" | "[" ~ (char | id) ~ ("|" ~ (char | id))* ~ "]" }
+call = { keyword_accept | keyword_reject | id ~ ("(" ~ (char | call) ~ ("," ~ (char | call))* ~ ")")? }
+primitive = { ">" | "<" | "#" ~ (char | id) }
+
+file = { SOI ~ statedef* ~ EOI }
+
+ascii_printable = { '\u{20}'..'\u{7e}' }
+WHITESPACE = _{ " " | "\t" | "\r" | "\n" }
+

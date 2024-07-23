@@ -1,0 +1,54 @@
+// selectors using `|` syntax.
+// when we have a call like p(x), we don't know semantically what x is; it could be a call or a char or a selector.
+// this is why we have here call_chain_noid and selector_inner_noid: they parse call chains or selectors only if they can be sure that it's not the other.
+// chars are caught before selectors.
+// (at this stage) unidentifiable lone ids are caught also, see call_tail.
+
+id_start = { 'a'..'z' | 'A'..'Z' | "_" }
+id_continue = { id_start | '0'..'9' }
+id = @{ !(keyword_accept ~ !id_continue) ~
+        !(keyword_reject ~ !id_continue) ~
+        !(keyword_def ~ !id_continue) ~
+        !(keyword_anon ~ !id_continue) ~
+        id_start ~ (id_continue)* }
+
+keyword_accept = { "accept" }
+keyword_reject = { "reject" }
+keyword_def = { "def" }
+keyword_anon = { "anon" }
+
+char = @{ "'" ~ char_inner ~ "'" }
+char_inner = @{ "x" ~ hexdigit ~ hexdigit | ascii_printable }
+hexdigit = { '0'..'9' | 'a'..'f' }
+
+
+statedef = { id ~ params? ~ "{" ~ branch+ ~ "}" }
+params = { "(" ~ id ~ ("," ~ id)* ~ ")" }
+branch = { selector ~ call_chain }
+call_chain = { (primitive | call)* ~ (keyword_accept | keyword_reject)? }
+// this could probably more beautiful with the NOT or & syntax of pest; alternatively, do id ~ &("," | ")") first?
+call_chain_noid = {
+  // primitive or call_noid as first
+  (primitive | call_noid) ~ (primitive | call)* ~ (keyword_accept | keyword_reject)? |
+  // (at least) two things
+  (primitive | call){2, } ~ (keyword_accept | keyword_reject)? |
+  // accept or reject
+  (primitive | call)* ~ (keyword_accept | keyword_reject) }
+selector = { "[" ~ keyword_def ~ "]" | "[" ~ selector_inner ~ "]" }
+selector_inner = { (char | id) ~ ("|" ~ (char | id))* }
+selector_inner_noid = {
+  // immediate char as first
+  char ~ ("|" ~ (char | id))* |
+  // (at least) two things
+  id ~ ("|" ~ (char | id))+ }
+call = { keyword_anon ~ params? ~ "{" ~ branch+ ~ "}" ~ call_tail? |
+  id ~ call_tail? }
+call_noid = { keyword_anon ~ params? ~ "{" ~ branch+ ~ "}" ~ call_tail? |
+  id ~ call_tail } 
+call_tail = { "(" ~ (char ~ !"|" | selector_inner_noid | call_chain_noid | id) ~ ("," ~ (char ~ !"|" | selector_inner_noid | call_chain_noid | id))* ~ ")" }
+primitive = { ">" | "<" | "#" ~ (char | id) }
+
+file = { SOI ~ statedef* ~ EOI }
+
+ascii_printable = { '\u{20}'..'\u{7e}' }
+WHITESPACE = _{ " " | "\t" | "\r" | "\n" }

@@ -1,4 +1,4 @@
-let main = >>
+let main = chain { >>
   #'A' <
   #'1' <
   #'$' <
@@ -15,11 +15,13 @@ let main = >>
   #'0' <
   #'#' <
   #'%'
-  > singleterm accept
+  > singleterm accept }
 
-let find = |sel, mov| {
-	[sel] return
-	[def] mov self
+let def = ['0'|'1'|'_'|'a'|'A'|'b'|'B'|' '|'#'|'$'|'%']
+
+let find = fn(sel, mov) match $ {
+	sel: chain { return }
+	['0'|'1'|'_']: chain { mov stay }
 }
 let fl = |sel| find(sel, <)
 let fr = |sel| find(sel, >)
