@@ -9,13 +9,11 @@ id_continue = { id_start | '0'..'9' }
 id = @{ !(keyword_accept ~ !id_continue) ~
         !(keyword_reject ~ !id_continue) ~
         !(keyword_def ~ !id_continue) ~
-        !(keyword_anon ~ !id_continue) ~
         id_start ~ (id_continue)* }
 
 keyword_accept = { "accept" }
 keyword_reject = { "reject" }
 keyword_def = { "def" }
-keyword_anon = { "anon" }
 
 char = @{ "'" ~ char_inner ~ "'" }
 char_inner = @{ "x" ~ hexdigit ~ hexdigit | ascii_printable }
@@ -41,11 +39,10 @@ selector_inner_noid = {
   char ~ ("|" ~ (char | id))* |
   // (at least) two things
   id ~ ("|" ~ (char | id))+ }
-call = { keyword_anon ~ params? ~ "{" ~ branch+ ~ "}" ~ call_tail? |
-  id ~ call_tail? }
-call_noid = { keyword_anon ~ params? ~ "{" ~ branch+ ~ "}" ~ call_tail? |
-  id ~ call_tail } 
-call_tail = { "(" ~ (char ~ !"|" | selector_inner_noid | call_chain_noid | id) ~ ("," ~ (char ~ !"|" | selector_inner_noid | call_chain_noid | id))* ~ ")" }
+call = { id ~ call_tail? }
+call_noid = { id ~ call_tail }
+call_tail = { "(" ~ call_arg ~ ("," ~ call_arg)* ~ ")" }
+call_arg =  { char ~ !"|" | selector_inner_noid | call_chain_noid | id }
 primitive = { ">" | "<" | "#" ~ (char | id) }
 
 file = { SOI ~ statedef* ~ EOI }
