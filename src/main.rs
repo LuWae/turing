@@ -5,6 +5,8 @@ use crate::concrete::{Branch, Call, Machine, Primitive, Selector, State};
 mod parse;
 use parse::{parse_machine, ParseData};
 
+mod parse_abstract;
+
 struct Execution<'a> {
     machine: &'a Machine,
     state_idx: usize,
@@ -51,7 +53,7 @@ impl<'a> Execution<'a> {
     }
 }
 
-fn main() {
+fn main_concrete() {
     let input = std::fs::read_to_string("test_machine.tm").unwrap();
     match parse_machine(&input) {
         Ok(ParseData {
@@ -72,4 +74,9 @@ fn main() {
         }
         Err(e) => println!("{}", e),
     }
+}
+
+fn main() {
+    let input = std::fs::read_to_string("machine.atm").unwrap();
+    parse_abstract::parse_abstract(&input);
 }

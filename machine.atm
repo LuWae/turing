@@ -1,0 +1,8 @@
+find(sel, M, E) {
+  [sel] E
+  [!] M find(sel, M, E)
+}
+
+fl(sel, E) { find(sel, <) E }
+
+fr(sel, E) { find(sel, >) E }
