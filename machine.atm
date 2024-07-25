@@ -1,3 +1,23 @@
+main { >>
+  #'A' <
+  #'1' <
+  #'$' <
+  #'n' <
+  #'$' <
+  #' ' <
+  #'#' <
+  #'1' <
+  #'1' <
+  #'0' <
+  #'#' <
+  #'1' <
+  #'0' <
+  #'0' <
+  #'#' <
+  #'%'
+  > singleterm accept
+}
+
 find(sel, M, E) {
   [sel] E
   [!] M find(sel, M, E)
@@ -6,3 +26,164 @@ find(sel, M, E) {
 fl(sel, E) { find(sel, <) E }
 
 fr(sel, E) { find(sel, >) E }
+
+subst(E) {
+  ['0'] #'a' E
+  ['1'] #'b' E
+}
+
+substbig(E) {
+  ['0'] #'A' E
+  ['1'] #'B' E
+}
+
+resubst(E) {
+  ['a'|'A'] #'0' E
+  ['b'|'B'] #'1' E
+}
+
+singleterm(E) {
+  ['%'] #' ' fl('_') newterm fr('$') > singleterm_changepn(
+    >>> subst > fr('a') resubst singleterm E,
+    >>> substbig > fr('a') resubst singleterm E
+  )
+
+  [!] fl('%') #' ' > fr(' ') #'%' < step(
+    fr('a'|'b'|'A'|'B') repl calc1 fl('$') < fl('$') < singleterm E,
+    fr('a'|'b'|'A'|'B') repl resubst fl('$') < fl('$') < singleterm E
+  )
+}
+
+singleterm_changepn(P, N) {
+  ['p'] #'n' N
+  ['n'] #'p' P
+}
+
+calc1(E) {
+  ['A'] #'1' < calc1_decr E
+  ['B'] #'0' E
+  ['a'] #'1' E
+  ['b'] #'0' < calc1_incr E
+}
+
+calc1_decr(E) {
+  ['0'] #'1' < calc1_decr E
+  ['1'] #'0' E
+}
+
+calc1_incr(E) {
+  ['0'] #'1' E
+  ['1'] #'0' < calc1_incr E
+}
+
+repl(E) {
+ ['a'|'b'] > repl_frompos E
+ ['A'|'B'] > repl_fromneg E
+}
+
+repl_frompos(E) {
+ ['0'|'_'] #'A' < E
+ ['1'] #'B' < E
+}
+
+repl_fromneg(E) {
+ ['0'|'_'] #'a' < E
+ ['1'] #'b' < E
+}
+
+newterm_rec(E) {
+  ['0'] #'a' fl('_') #'0' fr('a'|'b') resubst < newterm_rec E
+  ['1'] #'b' fl('_') #'1' fr('a'|'b') resubst < newterm_rec E
+  [!] fl('_') #'0' < #'#' < fr('#') << add_bit fl('#') >> newterm_prune E
+}
+
+newterm_prune(E) {
+  ['0'] < #'#' < #'_' >> fr('#') < newterm_numerator E
+  [!] > fr('#') < newterm_numerator E
+}
+
+newterm_numerator(E) {
+  ['0'|'1'] subst fl('_') #'0' fr('a'|'b') resubst < newterm_numerator E
+  [!] < #'1' fl('_') #'#' < #'%' E
+}
+
+add_bit(E) {
+  ['0'] #'1' E
+  ['1'] #'0' <
+}
+
+step(T, F) { < fl('#') shl > fr('#') cmpge(sub T, F) }
+
+shl(E) { < fl('#') >> shl1 E }
+
+shl1(E) {
+  ['0'] < #'0' >> shl1 E
+  ['1'] < #'1' >> shl1 E
+  [!] < #'0' > E
+}
+
+cmpge(T, F) { < fl('#') > subst << fl('#') > cmpge_entry(T, F) }
+
+cmpge_entry(T, F) {
+  ['0'] #'a' > fr('a'|'b') cmpge_0(T, F)
+  ['1'] #'b' > fr('a'|'b') cmpge_1(T, F)
+  [!] > fr('#') T
+}
+
+cmpge_redo(T, F) {
+  ['0'] #'a' < fl('a'|'b') resubst > cmpge_entry(T, F)
+  ['1'] #'b' < fl('a'|'b') resubst > cmpge_entry(T, F)
+  [!] fl2('a'|'b') resubst fr('#') > fr('#') T
+}
+
+cmpge_leave(E) { fl('a'|'b') resubst fr('#') > fr('#') E }
+
+cmpge_next(T, F) { > subst < cmpge_redo(T, F) }
+
+cmpge_0(T, F) {
+  ['a'] #'0' > cmpge_redo(T, F)
+  ['b'] #'1' cmpge_leave F
+}
+
+cmpge_1(T, F) {
+  ['a'] #'0' cmpge_leave T
+  ['b'] #'1' > cmpge_redo(T, F)
+}
+
+sub(E) { < fl('#') < subst >> fr('#') < sub_entry E }
+
+sub_entry(E) {
+  ['0'] #'a' < fl('a'|'b') sub_0 E
+  ['1'] #'b' < fl('a'|'b') sub_1 E
+}
+
+sub_redo(E) { > fr('a'|'b') resubst < sub_entry E }
+
+sub_0(E) { resubst < sub_0_1 E }
+
+sub_0_1(E) {
+  ['0'|'1'] subst sub_redo E
+  [!] fr('a'|'b') resubst fr('#') E
+}
+
+sub_1(E) {
+  ['a'] #'1' < sub_1_ppg1 E
+  ['b'] #'0' < sub1_1 E
+}
+
+sub1_1(E) {
+  ['0'|'1'] subst sub_redo E
+  [!] > fr('a'|'b') resubst fr('#') E
+}
+
+sub_1_ppg1(E) {
+  ['0'] #'b' < sub_1_ppg2 E
+  ['1'] #'a' sub_redo E
+  [!] > fr('a'|'b') resubst fr('#') E
+}
+
+sub_1_ppg2(E) {
+  ['0'] #'1' < sub_1_ppg2 E
+  ['1'] #'0' fr('a'|'b') sub_redo E
+  [!] > fr('a'|'b') sub_redo E
+}

@@ -2,12 +2,19 @@ use pest::iterators::Pair;
 use pest::Parser;
 use pest_derive::Parser;
 use std::boxed::Box;
+use std::collections::HashMap;
 
 #[derive(Debug)]
 struct StateDef<'a> {
     name: &'a str,
     params: Vec<&'a str>,
-    branches: Vec<(Selector<'a>, Chain<'a>)>,
+    branches: Vec<Branch<'a>>,
+}
+
+#[derive(Debug)]
+struct Branch<'a> {
+    sel: Selector<'a>,
+    chain: Chain<'a>,
 }
 
 #[derive(Debug)]
@@ -20,15 +27,55 @@ enum Selector<'a> {
     Elem(SelectorElem<'a>),
 }
 
+impl<'a> Selector<'a> {
+    fn resolve(self, args: &HashMap<&'a str, CallArg>) -> ResolvedSelector {
+        use ResolvedSelector as R;
+        use Selector as S;
+        match self {
+            S::Or(v) => R::Or(v.into_iter().map(S::into_resolved).collect()),
+            S::And(v) => R::And(v.into_iter().map(S::into_resolved).collect()),
+            S::Not(sel) => R::Not(Box::new(sel.into_resolved())),
+            S::All => R::All,
+            S::Range(start, end) => R::Range(start.into_resolved(), end.into_resolved()),
+            S::Elem(elem) => R::Elem(elem.into_resolved()),
+            _ => todo!(),
+        }
+    }
+}
+
+enum ResolvedSelector {
+    Or(Vec<ResolvedSelector>),
+    And(Vec<ResolvedSelector>),
+    Not(Box<ResolvedSelector>),
+    All,
+    Range(u8, u8),
+    Elem(u8),
+}
+
 #[derive(Debug)]
 enum SelectorElem<'a> {
     Sym(u8),
     Id(&'a str),
 }
 
+impl<'a> SelectorElem<'a> {
+    fn into_resolved(self) -> u8 {
+        use SelectorElem as SE;
+        match self {
+            SE::Sym(sym) => sym,
+            SE::Id(s) => panic!("unresolved in selector: {}", s),
+        }
+    }
+}
+
 #[derive(Debug)]
 struct Chain<'a> {
     parts: Vec<ChainElem<'a>>,
+    term: Option<Termination>,
+}
+
+struct ResolvedChain<'a> {
+    parts: Vec<ResolvedChainElem<'a>>,
     term: Option<Termination>,
 }
 
@@ -38,11 +85,46 @@ enum ChainElem<'a> {
     Call { id: &'a str, args: Vec<CallArg<'a>> },
 }
 
+enum ResolvedChainElem<'a> {
+    Prim(ResolvedPrimitive),
+    Call {
+        id: &'a str,
+        args: Vec<ResolvedCallArg<'a>>,
+    },
+}
+
 #[derive(Debug)]
 enum Primitive<'a> {
     Movel,
     Mover,
     Print(SelectorElem<'a>),
+}
+
+impl<'a> Primitive<'a> {
+    fn resolve(self, args: &HashMap<&'a str, CallArg>) -> ResolvedPrimitive {
+        use Primitive as P;
+        use ResolvedPrimitive as RP;
+        match self {
+            P::Movel => RP::Movel,
+            P::Mover => RP::Mover,
+            P::Print(elem) => RP::Print(match elem {
+                SelectorElem::Sym(sym) => sym,
+                SelectorElem::Id(s) => match args.get(s) {
+                    Some(arg) => match arg {
+                        CallArg::Sym(sym) => *sym,
+                        _ => panic!("expected sym for \"{}\", got {:?}", s, arg),
+                    },
+                    None => panic!("could not resolve \"{}\"", s),
+                },
+            }),
+        }
+    }
+}
+
+enum ResolvedPrimitive {
+    Movel,
+    Mover,
+    Print(u8),
 }
 
 #[derive(Debug)]
@@ -51,6 +133,12 @@ enum CallArg<'a> {
     Sel(Selector<'a>),
     Chain(Chain<'a>),
     Id(&'a str),
+}
+
+enum ResolvedCallArg<'a> {
+    Sym(u8),
+    Sel(ResolvedSelector),
+    Chain(ResolvedChain<'a>),
 }
 
 #[derive(Debug)]
@@ -158,13 +246,13 @@ fn parse_call_chain(pair: Pair<'_, Rule>) -> Chain<'_> {
     Chain { parts, term }
 }
 
-fn parse_branch(pair: Pair<'_, Rule>) -> (Selector<'_>, Chain<'_>) {
+fn parse_branch(pair: Pair<'_, Rule>) -> Branch {
     assert!(pair.as_rule() == Rule::branch);
     let mut inner = pair.into_inner();
-    (
-        parse_selector(inner.next().unwrap()),
-        parse_call_chain(inner.next().unwrap()),
-    )
+    Branch {
+        sel: parse_selector(inner.next().unwrap()),
+        chain: parse_call_chain(inner.next().unwrap()),
+    }
 }
 
 fn parse_statedef(pair: Pair<'_, Rule>) -> StateDef<'_> {
@@ -180,7 +268,10 @@ fn parse_statedef(pair: Pair<'_, Rule>) -> StateDef<'_> {
         maybe_pair = inner.next();
     }
     let branches = if let Some(Rule::call_chain) = maybe_pair.as_ref().map(|p| p.as_rule()) {
-        vec![(Selector::All, parse_call_chain(maybe_pair.unwrap()))]
+        vec![Branch {
+            sel: Selector::All,
+            chain: parse_call_chain(maybe_pair.unwrap()),
+        }]
     } else {
         let mut b = Vec::new();
         while maybe_pair.is_some() {
@@ -208,6 +299,6 @@ pub fn parse_abstract(input: &str) {
         .map(|p| parse_statedef(p))
         .collect();
     for state in m {
-        println!("{:?}", state);
+        println!("{:#?}", state);
     }
 }
