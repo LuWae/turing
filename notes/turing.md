@@ -29,9 +29,12 @@ Technically we want semantic equivalence on a state level: if we try to resolve 
 
 The simplest way to do this would be with an `Eq` implementation.
 
-At the time where we do these equality checks, a few things must hold.
+At the time where we do these equality checks, there cannot be any free variables; any free variables are assumed to be a state in a chain!
+- for `Symbol`: trivial
 - for `Selector`:
 	- All `SelectorElem` must be `Sym`; we can't have unresolved `Id`s here.
 	- perhaps we can represent this through a checked newtype.
+- for `Chain`:
+	- all unresolved things are treated as states.
 
 [^1]: or do we? Perhaps this is a feature, so the user knows better where a given state came from. We could have different resolving modes

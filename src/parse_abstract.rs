@@ -1,3 +1,4 @@
+use bitvec::prelude as bv;
 use pest::iterators::Pair;
 use pest::Parser;
 use pest_derive::Parser;
@@ -28,21 +29,21 @@ enum Selector<'a> {
 }
 
 impl<'a> Selector<'a> {
-    fn resolve(self, args: &HashMap<&'a str, CallArg>) -> ResolvedSelector {
+    fn resolve(self, args: &HashMap<&'a str, ResolvedCallArg>) -> ResolvedSelector {
         use ResolvedSelector as R;
         use Selector as S;
         match self {
-            S::Or(v) => R::Or(v.into_iter().map(S::into_resolved).collect()),
-            S::And(v) => R::And(v.into_iter().map(S::into_resolved).collect()),
-            S::Not(sel) => R::Not(Box::new(sel.into_resolved())),
+            S::Or(v) => R::Or(v.into_iter().map(|s| s.resolve(args)).collect()),
+            S::And(v) => R::And(v.into_iter().map(|s| s.resolve(args)).collect()),
+            S::Not(s) => R::Not(Box::new(s.resolve(args))),
             S::All => R::All,
-            S::Range(start, end) => R::Range(start.into_resolved(), end.into_resolved()),
-            S::Elem(elem) => R::Elem(elem.into_resolved()),
-            _ => todo!(),
+            S::Range(start, end) => R::Range(start.resolve(args), end.resolve(args)),
+            S::Elem(elem) => R::Elem(elem.resolve(args)),
         }
     }
 }
 
+#[derive(Debug)]
 enum ResolvedSelector {
     Or(Vec<ResolvedSelector>),
     And(Vec<ResolvedSelector>),
@@ -52,6 +53,35 @@ enum ResolvedSelector {
     Elem(u8),
 }
 
+impl ResolvedSelector {
+    fn contains(&self, sym: u8) -> bool {
+        use ResolvedSelector as RS;
+        match self {
+            RS::Or(v) => v.iter().any(|s| s.contains(sym)),
+            RS::And(v) => v.iter().all(|s| s.contains(sym)),
+            RS::Not(s) => !s.contains(sym),
+            RS::All => true,
+            RS::Range(start, end) => sym >= *start && sym <= *end,
+            RS::Elem(sym2) => sym == *sym2,
+        }
+    }
+
+    fn to_bitarr(&self) -> bv::BitArray<[u8; 32]> {
+        let mut arr = bv::bitarr![u8, bv::Lsb0; 0; 256];
+        for c in 0..256 {
+            arr.set(c, self.contains(c as u8));
+        }
+        arr
+    }
+}
+
+impl PartialEq for ResolvedSelector {
+    fn eq(&self, other: &Self) -> bool {
+        self.to_bitarr() == other.to_bitarr()
+    }
+}
+impl Eq for ResolvedSelector {}
+
 #[derive(Debug)]
 enum SelectorElem<'a> {
     Sym(u8),
@@ -59,11 +89,27 @@ enum SelectorElem<'a> {
 }
 
 impl<'a> SelectorElem<'a> {
-    fn into_resolved(self) -> u8 {
+    fn resolve(self, args: &HashMap<&'a str, ResolvedCallArg>) -> u8 {
         use SelectorElem as SE;
         match self {
             SE::Sym(sym) => sym,
-            SE::Id(s) => panic!("unresolved in selector: {}", s),
+            SE::Id(s) => match args.get(s) {
+                Some(arg) => match arg {
+                    ResolvedCallArg::Sym(sym) => *sym,
+                    ResolvedCallArg::Sel(sel) => match sel {
+                        ResolvedSelector::Elem(sym) => *sym,
+                        _ => panic!(
+                            "attempted to substitute selector \"{:?}\" into SelectorElem",
+                            sel
+                        ),
+                    },
+                    ResolvedCallArg::Chain(c) => panic!(
+                        "attempted to substitute chain \"{:?}\" into SelectorElem",
+                        c
+                    ),
+                },
+                None => panic!("unresolved in selector: {}", s),
+            },
         }
     }
 }
@@ -74,6 +120,7 @@ struct Chain<'a> {
     term: Option<Termination>,
 }
 
+#[derive(Debug)]
 struct ResolvedChain<'a> {
     parts: Vec<ResolvedChainElem<'a>>,
     term: Option<Termination>,
@@ -85,6 +132,7 @@ enum ChainElem<'a> {
     Call { id: &'a str, args: Vec<CallArg<'a>> },
 }
 
+#[derive(Debug)]
 enum ResolvedChainElem<'a> {
     Prim(ResolvedPrimitive),
     Call {
@@ -121,6 +169,7 @@ impl<'a> Primitive<'a> {
     }
 }
 
+#[derive(Debug)]
 enum ResolvedPrimitive {
     Movel,
     Mover,
@@ -135,6 +184,7 @@ enum CallArg<'a> {
     Id(&'a str),
 }
 
+#[derive(Debug)]
 enum ResolvedCallArg<'a> {
     Sym(u8),
     Sel(ResolvedSelector),
