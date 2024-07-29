@@ -33,8 +33,9 @@ At the time where we do these equality checks, there cannot be any free variable
 - for `Symbol`: trivial
 - for `Selector`:
 	- All `SelectorElem` must be `Sym`; we can't have unresolved `Id`s here.
-	- perhaps we can represent this through a checked newtype.
+	- perhaps we can represent this through a checked newtype
 - for `Chain`:
-	- all unresolved things are treated as states.
+	- all unresolved things are treated as states. this already happens when we resolve the chain elements. Not important here.
+	- we need to catch things like `do_if(!'0', <<, >>)` and `do_if(!'0', <<) >>`. We could do this in the `Eq` implementation, or we use a type invariant on `ResolvedChain` that says we always have the chained representation
 
 [^1]: or do we? Perhaps this is a feature, so the user knows better where a given state came from. We could have different resolving modes

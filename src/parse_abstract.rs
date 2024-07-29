@@ -5,20 +5,20 @@ use pest_derive::Parser;
 use std::boxed::Box;
 use std::collections::HashMap;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct StateDef<'a> {
     name: &'a str,
     params: Vec<&'a str>,
     branches: Vec<Branch<'a>>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct Branch<'a> {
     sel: Selector<'a>,
     chain: Chain<'a>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 enum Selector<'a> {
     Or(Vec<Selector<'a>>),
     And(Vec<Selector<'a>>),
@@ -29,7 +29,7 @@ enum Selector<'a> {
 }
 
 impl<'a> Selector<'a> {
-    fn resolve(self, args: &HashMap<&'a str, ResolvedCallArg>) -> ResolvedSelector {
+    fn resolve(self, args: &HashMap<&'a str, ResolvedCallArg<'a>>) -> ResolvedSelector {
         use ResolvedSelector as R;
         use Selector as S;
         match self {
@@ -43,7 +43,7 @@ impl<'a> Selector<'a> {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 enum ResolvedSelector {
     Or(Vec<ResolvedSelector>),
     And(Vec<ResolvedSelector>),
@@ -66,30 +66,26 @@ impl ResolvedSelector {
         }
     }
 
-    fn to_bitarr(&self) -> bv::BitArray<[u8; 32]> {
-        let mut arr = bv::bitarr![u8, bv::Lsb0; 0; 256];
-        for c in 0..256 {
-            arr.set(c, self.contains(c as u8));
-        }
-        arr
+    fn to_bitvec(&self) -> bv::BitVec {
+        (0..256).map(|c| self.contains(c as u8)).collect()
     }
 }
 
 impl PartialEq for ResolvedSelector {
     fn eq(&self, other: &Self) -> bool {
-        self.to_bitarr() == other.to_bitarr()
+        self.to_bitvec() == other.to_bitvec()
     }
 }
 impl Eq for ResolvedSelector {}
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 enum SelectorElem<'a> {
     Sym(u8),
     Id(&'a str),
 }
 
 impl<'a> SelectorElem<'a> {
-    fn resolve(self, args: &HashMap<&'a str, ResolvedCallArg>) -> u8 {
+    fn resolve(self, args: &HashMap<&'a str, ResolvedCallArg<'a>>) -> u8 {
         use SelectorElem as SE;
         match self {
             SE::Sym(sym) => sym,
@@ -114,34 +110,76 @@ impl<'a> SelectorElem<'a> {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct Chain<'a> {
     parts: Vec<ChainElem<'a>>,
-    term: Option<Termination>,
 }
 
-#[derive(Debug)]
+impl<'a> Chain<'a> {
+    fn resolve(self, args: &HashMap<&'a str, ResolvedCallArg<'a>>) -> ResolvedChain<'a> {
+        ResolvedChain {
+            parts: self
+                .parts
+                .into_iter()
+                .map(|elem| elem.resolve(args))
+                .collect(),
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
 struct ResolvedChain<'a> {
     parts: Vec<ResolvedChainElem<'a>>,
-    term: Option<Termination>,
 }
 
-#[derive(Debug)]
+impl<'a> PartialEq for ResolvedChain<'a> {
+    fn eq(&self, other: &Self) -> bool {
+        // we need to catch
+        todo!()
+    }
+}
+impl<'a> Eq for ResolvedChain<'a> {}
+
+#[derive(Debug, Clone)]
 enum ChainElem<'a> {
     Prim(Primitive<'a>),
     Call { id: &'a str, args: Vec<CallArg<'a>> },
+    Accept,
+    Reject,
 }
 
-#[derive(Debug)]
+impl<'a> ChainElem<'a> {
+    fn resolve(self, args: &HashMap<&'a str, ResolvedCallArg<'a>>) -> ResolvedChainElem<'a> {
+        match self {
+            ChainElem::Prim(prim) => ResolvedChainElem::Prim(prim.resolve(args)),
+            ChainElem::Call {
+                id,
+                args: call_args,
+            } => ResolvedChainElem::Call {
+                id,
+                args: call_args
+                    .into_iter()
+                    .map(|call_arg| call_arg.resolve(args))
+                    .collect(),
+            },
+            ChainElem::Accept => ResolvedChainElem::Accept,
+            ChainElem::Reject => ResolvedChainElem::Reject,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 enum ResolvedChainElem<'a> {
     Prim(ResolvedPrimitive),
     Call {
         id: &'a str,
         args: Vec<ResolvedCallArg<'a>>,
     },
+    Accept,
+    Reject,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 enum Primitive<'a> {
     Movel,
     Mover,
@@ -149,7 +187,7 @@ enum Primitive<'a> {
 }
 
 impl<'a> Primitive<'a> {
-    fn resolve(self, args: &HashMap<&'a str, CallArg>) -> ResolvedPrimitive {
+    fn resolve(self, args: &HashMap<&'a str, ResolvedCallArg<'a>>) -> ResolvedPrimitive {
         use Primitive as P;
         use ResolvedPrimitive as RP;
         match self {
@@ -159,7 +197,7 @@ impl<'a> Primitive<'a> {
                 SelectorElem::Sym(sym) => sym,
                 SelectorElem::Id(s) => match args.get(s) {
                     Some(arg) => match arg {
-                        CallArg::Sym(sym) => *sym,
+                        ResolvedCallArg::Sym(sym) => *sym,
                         _ => panic!("expected sym for \"{}\", got {:?}", s, arg),
                     },
                     None => panic!("could not resolve \"{}\"", s),
@@ -169,14 +207,14 @@ impl<'a> Primitive<'a> {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 enum ResolvedPrimitive {
     Movel,
     Mover,
     Print(u8),
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 enum CallArg<'a> {
     Sym(u8),
     Sel(Selector<'a>),
@@ -184,17 +222,31 @@ enum CallArg<'a> {
     Id(&'a str),
 }
 
-#[derive(Debug)]
+impl<'a> CallArg<'a> {
+    fn resolve(self, args: &HashMap<&'a str, ResolvedCallArg<'a>>) -> ResolvedCallArg<'a> {
+        match self {
+            CallArg::Sym(sym) => ResolvedCallArg::Sym(sym),
+            CallArg::Sel(sel) => ResolvedCallArg::Sel(sel.resolve(args)),
+            CallArg::Chain(chain) => ResolvedCallArg::Chain(chain.resolve(args)),
+            CallArg::Id(s) => match args.get(s) {
+                Some(call_arg) => call_arg.clone(),
+                None => ResolvedCallArg::Chain(ResolvedChain {
+                    // id that we haven't found: must be a state!
+                    parts: vec![ResolvedChainElem::Call {
+                        id: s,
+                        args: Vec::new(),
+                    }],
+                }),
+            },
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 enum ResolvedCallArg<'a> {
     Sym(u8),
     Sel(ResolvedSelector),
     Chain(ResolvedChain<'a>),
-}
-
-#[derive(Debug)]
-enum Termination {
-    Accept,
-    Reject,
 }
 
 #[derive(Parser)]
@@ -268,7 +320,6 @@ fn parse_call_arg(pair: Pair<'_, Rule>) -> CallArg<'_> {
 
 fn parse_call_chain(pair: Pair<'_, Rule>) -> Chain<'_> {
     let mut parts = Vec::new();
-    let mut term = None;
     for p in pair.into_inner() {
         match p.as_rule() {
             Rule::primitive => parts.push(ChainElem::Prim(parse_primitive(p))),
@@ -284,16 +335,12 @@ fn parse_call_chain(pair: Pair<'_, Rule>) -> Chain<'_> {
                 }
                 parts.push(ChainElem::Call { id, args });
             }
-            Rule::keyword_accept => {
-                term = Some(Termination::Accept);
-            }
-            Rule::keyword_reject => {
-                term = Some(Termination::Reject);
-            }
+            Rule::keyword_accept => parts.push(ChainElem::Accept),
+            Rule::keyword_reject => parts.push(ChainElem::Reject),
             _ => panic!("unexpected rule type: {:?}", p.as_rule()),
         }
     }
-    Chain { parts, term }
+    Chain { parts }
 }
 
 fn parse_branch(pair: Pair<'_, Rule>) -> Branch {
