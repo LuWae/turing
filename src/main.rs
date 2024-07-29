@@ -1,11 +1,11 @@
 mod tape;
-use crate::tape::Tape;
+use tape::Tape;
 mod concrete;
-use crate::concrete::{Branch, Call, Machine, Primitive, Selector, State};
-mod parse;
-use parse::{parse_machine, ParseData};
-
-mod parse_abstract;
+use concrete::{Branch, Call, Machine, Primitive, Selector, State};
+mod parse_concrete;
+use parse_concrete::{parse_machine, ParseData};
+mod parse_skeleton;
+mod skeleton;
 
 struct Execution<'a> {
     machine: &'a Machine,
@@ -78,5 +78,5 @@ fn main_concrete() {
 
 fn main() {
     let input = std::fs::read_to_string("machine.atm").unwrap();
-    parse_abstract::parse_abstract(&input);
+    parse_skeleton::parse_skeleton(&input);
 }
